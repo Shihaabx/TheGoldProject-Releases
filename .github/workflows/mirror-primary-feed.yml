@@ -1,0 +1,55 @@
+name: Mirror primary updater feed
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install Velopack CLI
+        run: dotnet tool install --global vpk --version 1.2.161
+
+      - name: Download primary updater feed
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path Releases | Out-Null
+          vpk download http --url https://shihaabx.github.io/TheGoldProject/updates --outputDir Releases
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Primary GitHub Pages updater feed is not available yet.'
+          }
+          Get-ChildItem Releases | Format-Table Name, Length
+
+      - name: Publish legacy compatibility release
+        shell: pwsh
+        env:
+          VPK_TOKEN: ${{ github.token }}
+        run: |
+          vpk upload github --outputDir Releases --repoUrl https://github.com/Shihaabx/TheGoldProject-Releases --publish true
+
+      - name: Verify compatibility release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            'User-Agent' = 'TheGoldProject-Release-Mirror'
+          }
+          $release = Invoke-RestMethod -Headers $headers -Uri 'https://api.github.com/repos/Shihaabx/TheGoldProject-Releases/releases/latest'
+          if ($null -eq $release -or [string]::IsNullOrWhiteSpace([string]$release.tag_name)) {
+            throw 'Compatibility release was not published.'
+          }
+          Write-Host "Compatibility release available: $($release.tag_name)"
