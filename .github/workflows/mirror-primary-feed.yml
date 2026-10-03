@@ -1,69 +1,111 @@
-name: Publish bridged updater release
+name: Publish tested Windows release
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+    paths: [release-request.json, .github/workflows/mirror-primary-feed.yml]
   workflow_dispatch:
 
 permissions:
   contents: write
+concurrency:
+  group: windows-release-publisher
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: windows-latest
     timeout-minutes: 20
-    env:
-      BRIDGE_URL: "https://sdmntprdenmarkeast.oaiusercontent.com/files/00000000-734c-8210-a13e-80bf62d1857b/raw?se=2026-10-03T06%3A49%3A07Z&sp=r&sv=2026-02-06&sr=b&scid=aced7c37-5279-50e6-b0d3-20708f4ffa4d&skoid=d294dba5-36f7-432b-aab8-935656489847&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-03T06%3A39%3A45Z&ske=2026-10-04T06%3A39%3A45Z&sks=b&skv=2026-02-06&sig=PmcJ7xMJiKy2YCqSkd%2B0ujpr/WcU9xIgZk9MEfTCrrg%3D"
     steps:
+      - name: Checkout release request
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Validate release request
+        id: request
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if (-not (Test-Path release-request.json)) { throw 'A tested release request is required.' }
+          $request = Get-Content release-request.json -Raw | ConvertFrom-Json
+          if ($request.version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version.' }
+          $version = [version]$request.version
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; 'User-Agent' = 'TheGoldProject-Release-Publisher' }
+          $latest = Invoke-RestMethod -Headers $headers -Uri 'https://api.github.com/repos/Shihaabx/TheGoldProject-Releases/releases/latest'
+          if ([version]$latest.tag_name -gt $version) { throw 'A release request must not downgrade the installed feed.' }
+          if ([version]$latest.tag_name -eq $version) {
+            'publish=false' >> $env:GITHUB_OUTPUT
+          } else {
+            if ($request.sha256 -notmatch '^[A-Fa-f0-9]{64}$') { throw 'Artifact SHA-256 is required.' }
+            $uri = [uri]$request.artifactUrl
+            if ($uri.Scheme -ne 'https' -or $uri.Host -notmatch '(\.oaiusercontent\.com|\.blob\.core\.windows\.net|\.s3[.-].*\.amazonaws\.com)$') { throw 'Expected a scoped HTTPS release-artifact download.' }
+            'publish=true' >> $env:GITHUB_OUTPUT
+          }
+          "APP_VERSION=$($request.version)" >> $env:GITHUB_ENV
+
       - name: Set up .NET 8
+        if: steps.request.outputs.publish == 'true'
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
         with:
           dotnet-version: 8.0.x
-
       - name: Install Velopack CLI
+        if: steps.request.outputs.publish == 'true'
         run: dotnet tool install --global vpk --version 1.2.161
-
-      - name: Download tested 0.9.1 artifact
+      - name: Verify tested release artifact
+        if: steps.request.outputs.publish == 'true'
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri $env:BRIDGE_URL -OutFile artifact.zip
-          Expand-Archive -Path artifact.zip -DestinationPath Releases -Force
-          Get-ChildItem Releases | Format-Table Name, Length
-
-          if (-not (Test-Path 'Releases/releases.win.json')) {
-            throw 'Artifact is missing releases.win.json.'
+          $request = Get-Content release-request.json -Raw | ConvertFrom-Json
+          Invoke-WebRequest -Uri $request.artifactUrl -OutFile artifact.zip
+          if ((Get-FileHash artifact.zip -Algorithm SHA256).Hash -ne $request.sha256) { throw 'Artifact digest does not match the tested CI artifact.' }
+          Expand-Archive artifact.zip Releases
+          $feed = Get-Content Releases/releases.win.json -Raw | ConvertFrom-Json
+          $full = @($feed.Assets | Where-Object { $_.Type -eq 'Full' -and [string]$_.Version -eq $env:APP_VERSION })
+          if ($full.Count -ne 1 -or @($feed.Assets | Where-Object { [string]$_.Version -ne $env:APP_VERSION }).Count) { throw 'Feed must contain exactly one current full release and no old versions.' }
+          $keep = @($feed.Assets | ForEach-Object { $_.FileName }) + @('releases.win.json', 'RELEASES', 'Shihaabx.TheGoldProject-win-Setup.exe')
+          foreach ($file in Get-ChildItem Releases -Recurse -File) {
+            if ($file.DirectoryName -ne (Resolve-Path Releases).Path -or $file.Name -notin $keep) { throw 'Unexpected file in release-only artifact.' }
           }
-
-          if (-not (Get-ChildItem Releases -Filter '*0.9.1-full.nupkg' | Select-Object -First 1)) {
-            throw 'Artifact is missing the 0.9.1 full package.'
+          foreach ($asset in $feed.Assets) {
+            if ($asset.FileName -ne [IO.Path]::GetFileName($asset.FileName)) { throw 'Invalid package file name.' }
+            $file = Join-Path Releases $asset.FileName
+            if (-not (Test-Path $file) -or (Get-Item $file).Length -ne $asset.Size) { throw 'Package missing or wrong size.' }
+            if ($asset.SHA1 -and (Get-FileHash $file -Algorithm SHA1).Hash -ne $asset.SHA1) { throw 'Package digest mismatch.' }
           }
-
-      - name: Publish 0.9.1 compatibility release
+          if (-not (Test-Path Releases/Shihaabx.TheGoldProject-win-Setup.exe)) { throw 'Installer missing.' }
+      - name: Publish tested release
+        if: steps.request.outputs.publish == 'true'
         shell: pwsh
         env:
           VPK_TOKEN: ${{ github.token }}
         run: |
           vpk upload github --outputDir Releases --repoUrl https://github.com/Shihaabx/TheGoldProject-Releases --publish true
-
-      - name: Verify 0.9.1 is public
+          if ($LASTEXITCODE -ne 0) { throw 'Velopack publish failed.' }
+      - name: Verify public update feed
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $headers = @{
-            Authorization = "Bearer $env:GH_TOKEN"
-            'User-Agent' = 'TheGoldProject-Release-Bridge'
-          }
-
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; 'User-Agent' = 'TheGoldProject-Release-Publisher' }
           $release = Invoke-RestMethod -Headers $headers -Uri 'https://api.github.com/repos/Shihaabx/TheGoldProject-Releases/releases/latest'
-          if ([string]$release.tag_name -ne '0.9.1') {
-            throw "Latest compatibility release is $($release.tag_name), expected 0.9.1."
-          }
-
+          if ([string]$release.tag_name -ne $env:APP_VERSION) { throw 'The public latest release is not the requested version.' }
           $names = @($release.assets | ForEach-Object { $_.name })
-          if ($names -notcontains 'releases.win.json') {
-            throw 'Published release is missing releases.win.json.'
+          if ($names -notcontains "Shihaabx.TheGoldProject-$env:APP_VERSION-full.nupkg" -or $names -notcontains 'releases.win.json' -or $names -notcontains 'Shihaabx.TheGoldProject-win-Setup.exe') { throw 'Public release assets are incomplete.' }
+          $feedUrl = ($release.assets | Where-Object name -eq 'releases.win.json').browser_download_url
+          $feed = Invoke-RestMethod -Uri $feedUrl
+          if (-not ($feed.Assets | Where-Object { $_.Type -eq 'Full' -and [string]$_.Version -eq $env:APP_VERSION })) { throw 'Installed clients cannot discover the requested update.' }
+          Write-Host "Verified normal public update feed $env:APP_VERSION."
+      - name: Record publication and discard temporary download URL
+        shell: pwsh
+        run: |
+          $request = Get-Content release-request.json -Raw | ConvertFrom-Json
+          if ($request.artifactUrl) {
+            $request.PSObject.Properties.Remove('artifactUrl')
+            $request | Add-Member publishedAt ([DateTimeOffset]::UtcNow.ToString('o')) -Force
+            $request | ConvertTo-Json -Depth 5 | Set-Content release-request.json -Encoding utf8NoBOM
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add release-request.json
+            git commit -m "Record verified Windows $env:APP_VERSION publication"
+            git push
+            if ($LASTEXITCODE -ne 0) { throw 'Could not record publication.' }
           }
-
-          Write-Host 'Verified public compatibility release 0.9.1.'
