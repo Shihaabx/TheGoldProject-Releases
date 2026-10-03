@@ -14,7 +14,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     env:
-      BRIDGE_URL: "https://sdmntprdenmarkeast.oaiusercontent.com/files/00000000-dc2c-8210-81e6-2119380fd875/raw?se=2026-10-03T06%3A27%3A44Z&sp=r&sv=2026-02-06&sr=b&scid=400a58c3-8767-5a51-9b4f-caa1c5142a09&skoid=d294dba5-36f7-432b-aab8-935656489847&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-02T19%3A49%3A01Z&ske=2026-10-03T19%3A49%3A01Z&sks=b&skv=2026-02-06&sig=U7HK%2Bj4nQm%2B0FtJgEtixt7q8wTKLLHgMxHrxtBDSvBs%3D"
+      BRIDGE_URL: "https://sdmntprdenmarkeast.oaiusercontent.com/files/00000000-734c-8210-a13e-80bf62d1857b/raw?se=2026-10-03T06%3A49%3A07Z&sp=r&sv=2026-02-06&sr=b&scid=aced7c37-5279-50e6-b0d3-20708f4ffa4d&skoid=d294dba5-36f7-432b-aab8-935656489847&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-03T06%3A39%3A45Z&ske=2026-10-04T06%3A39%3A45Z&sks=b&skv=2026-02-06&sig=PmcJ7xMJiKy2YCqSkd%2B0ujpr/WcU9xIgZk9MEfTCrrg%3D"
     steps:
       - name: Set up .NET 8
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
@@ -24,7 +24,7 @@ jobs:
       - name: Install Velopack CLI
         run: dotnet tool install --global vpk --version 1.2.161
 
-      - name: Download tested 0.9.0 artifact
+      - name: Download tested 0.9.1 artifact
         shell: pwsh
         run: |
           Invoke-WebRequest -Uri $env:BRIDGE_URL -OutFile artifact.zip
@@ -35,18 +35,18 @@ jobs:
             throw 'Artifact is missing releases.win.json.'
           }
 
-          if (-not (Get-ChildItem Releases -Filter '*0.9.0-full.nupkg' | Select-Object -First 1)) {
-            throw 'Artifact is missing the 0.9.0 full package.'
+          if (-not (Get-ChildItem Releases -Filter '*0.9.1-full.nupkg' | Select-Object -First 1)) {
+            throw 'Artifact is missing the 0.9.1 full package.'
           }
 
-      - name: Publish 0.9.0 compatibility release
+      - name: Publish 0.9.1 compatibility release
         shell: pwsh
         env:
           VPK_TOKEN: ${{ github.token }}
         run: |
           vpk upload github --outputDir Releases --repoUrl https://github.com/Shihaabx/TheGoldProject-Releases --publish true
 
-      - name: Verify 0.9.0 is public
+      - name: Verify 0.9.1 is public
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,8 +57,8 @@ jobs:
           }
 
           $release = Invoke-RestMethod -Headers $headers -Uri 'https://api.github.com/repos/Shihaabx/TheGoldProject-Releases/releases/latest'
-          if ([string]$release.tag_name -ne '0.9.0') {
-            throw "Latest compatibility release is $($release.tag_name), expected 0.9.0."
+          if ([string]$release.tag_name -ne '0.9.1') {
+            throw "Latest compatibility release is $($release.tag_name), expected 0.9.1."
           }
 
           $names = @($release.assets | ForEach-Object { $_.name })
@@ -66,4 +66,4 @@ jobs:
             throw 'Published release is missing releases.win.json.'
           }
 
-          Write-Host 'Verified public compatibility release 0.9.0.'
+          Write-Host 'Verified public compatibility release 0.9.1.'
