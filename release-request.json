@@ -1,8 +1,8 @@
 {
   "version": "0.13.0",
-  "artifactUrl": "https://sdmntprdenmarkeast.oaiusercontent.com/files/00000000-ddf0-8210-bf68-b130fc58d770/raw?se=2026-10-03T17%3A37%3A39Z&sp=r&sv=2026-02-06&sr=b&scid=01a102aa-2289-7e40-8595-8dbe553bd355&skoid=d294dba5-36f7-432b-aab8-935656489847&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-03T07%3A17%3A03Z&ske=2026-10-04T07%3A17%3A03Z&sks=b&skv=2026-02-06&sig=r3hkkpF%2BipXg/ISdndbWA/T1tvE357XeHCfaOv8SIW0%3D",
   "sha256": "e627d9a573d552b646058186f529c3ba3056e29014760520dc88a20026910ca3",
   "sourceCommit": "7fa666f0fd6781bff86aa83175284620acb5909c",
   "sourceRun": "https://github.com/Shihaabx/TheGoldProject/actions/runs/37140560375",
-  "notes": "Gold desktop UI: responsive navigation and Arabic spacing, themed scrollbars/search/dropdowns, readable gold buttons, optional motion/sound, custom update progress and installer artwork. Close/minimize to the notification area; second launch restores the existing window. Verified six native pages at four actual sizes, keyboard/focus, tray restoration, and installed upgrade with data retained, cleanup, uninstall and reinstall."
+  "notes": "Gold desktop UI: responsive navigation and Arabic spacing, themed scrollbars/search/dropdowns, readable gold buttons, optional motion/sound, custom update progress and installer artwork. Close/minimize to the notification area; second launch restores the existing window. Verified six native pages at four actual sizes, keyboard/focus, tray restoration, and installed upgrade with data retained, cleanup, uninstall and reinstall.",
+  "publishedAt": "2026-10-03T17:33:52.7691712+00:00"
 }
