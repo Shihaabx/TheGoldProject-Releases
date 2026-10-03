@@ -1,8 +1,8 @@
 {
   "version": "0.12.0",
-  "artifactUrl": "https://sdmntprdenmarkeast.oaiusercontent.com/files/00000000-969c-8210-8e1f-e226b7b553e9/raw?se=2026-10-03T16%3A39%3A57Z&sp=r&sv=2026-02-06&sr=b&scid=a6e43daf-026d-4ee4-8aad-b9fe23cebf08&skoid=d294dba5-36f7-432b-aab8-935656489847&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-03T09%3A25%3A06Z&ske=2026-10-04T09%3A25%3A06Z&sks=b&skv=2026-02-06&sig=zN47fifJZZMQuGDasjDdBy5NyPpxXbDCrtc1ksO%2BF/A%3D",
   "sha256": "0a45da910ee691f73faf507ee02c714a52dcc19e2a490591a7cb0b9b3fa2c314",
   "sourceCommit": "769d92cfe0529dec333c4537faae77649ff6de78",
   "sourceRun": "https://github.com/Shihaabx/TheGoldProject/actions/runs/37136719994",
-  "notes": "Verified normal Windows upgrade: organized files, retained data and covers, obsolete binary cleanup, uninstall/reinstall. Includes native library and religion improvements."
+  "notes": "Verified normal Windows upgrade: organized files, retained data and covers, obsolete binary cleanup, uninstall/reinstall. Includes native library and religion improvements.",
+  "publishedAt": "2026-10-03T16:36:23.6753795+00:00"
 }
