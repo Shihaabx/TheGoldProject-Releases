@@ -61,7 +61,7 @@ jobs:
           $feed = Get-Content Releases/releases.win.json -Raw | ConvertFrom-Json
           $full = @($feed.Assets | Where-Object { $_.Type -eq 'Full' -and [string]$_.Version -eq $env:APP_VERSION })
           if ($full.Count -ne 1 -or @($feed.Assets | Where-Object { [string]$_.Version -ne $env:APP_VERSION }).Count) { throw 'Feed must contain exactly one current full release and no old versions.' }
-          $keep = @($feed.Assets | ForEach-Object { $_.FileName }) + @('releases.win.json', 'RELEASES', 'Shihaabx.TheGoldProject-win-Setup.exe')
+          $keep = @($feed.Assets | ForEach-Object { $_.FileName }) + @('releases.win.json', 'assets.win.json', 'RELEASES', 'Shihaabx.TheGoldProject-win-Setup.exe')
           foreach ($file in Get-ChildItem Releases -Recurse -File) {
             if ($file.DirectoryName -ne (Resolve-Path Releases).Path -or $file.Name -notin $keep) { throw 'Unexpected file in release-only artifact.' }
           }
@@ -72,6 +72,10 @@ jobs:
             if ($asset.SHA1 -and (Get-FileHash $file -Algorithm SHA1).Hash -ne $asset.SHA1) { throw 'Package digest mismatch.' }
           }
           if (-not (Test-Path Releases/Shihaabx.TheGoldProject-win-Setup.exe)) { throw 'Installer missing.' }
+          # Rebuild the CLI manifest only from verified packages and the tested installer.
+          # This also accepts the first organized artifact that omitted this metadata.
+          $manifest = @($feed.Assets | ForEach-Object { @{ RelativeFileName = $_.FileName; Type = $_.Type } }) + @(@{ RelativeFileName = 'Shihaabx.TheGoldProject-win-Setup.exe'; Type = 'Installer' })
+          ConvertTo-Json -InputObject $manifest -Depth 5 | Set-Content Releases/assets.win.json -Encoding utf8NoBOM
       - name: Publish tested release
         if: steps.request.outputs.publish == 'true'
         shell: pwsh
@@ -100,7 +104,7 @@ jobs:
           $request = Get-Content release-request.json -Raw | ConvertFrom-Json
           if ($request.artifactUrl) {
             $request.PSObject.Properties.Remove('artifactUrl')
-            $request | Add-Member publishedAt ([DateTimeOffset]::UtcNow.ToString('o')) -Force
+            $request | Add-Member -NotePropertyName publishedAt -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force
             $request | ConvertTo-Json -Depth 5 | Set-Content release-request.json -Encoding utf8NoBOM
             git config user.name github-actions[bot]
             git config user.email 41898282+github-actions[bot]@users.noreply.github.com
